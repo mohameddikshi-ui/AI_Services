@@ -4,10 +4,12 @@ from app.core.db import engine
 
 CATEGORY_CASE = """
 CASE
-    WHEN pd.fItemName LIKE 'G %' THEN 'Gold'
-    WHEN pd.fItemName LIKE 'S %' THEN 'Silver'
-    WHEN pd.fItemName LIKE 'D %' THEN 'Diamond'
-    WHEN pd.fItemName LIKE 'N %' THEN 'Silver/Other'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE 'G %' THEN 'Gold'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE 'S %' THEN 'Silver'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE 'D %' THEN 'Diamond'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE 'DIAMOND%' THEN 'Diamond'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE '%DIAMOND%' THEN 'Diamond'
+    WHEN LTRIM(RTRIM(pd.fItemName)) LIKE 'N %' THEN 'Silver/Other'
     ELSE 'Other'
 END
 """
