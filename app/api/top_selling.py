@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 from app.services.top_selling_service import get_top_selling
 
-router = APIRouter()
+router = APIRouter(tags=["Top Selling Products Analysis"])
 
 @router.get("/ai/top-selling")
 def top_selling(
