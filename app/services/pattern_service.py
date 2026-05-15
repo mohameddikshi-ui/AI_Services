@@ -1,24 +1,59 @@
 from app.repository.sales_repo import get_purchase_patterns
+
 from app.utils.pagination import get_pagination
+
 from app.utils.response import (
     success_response
 )
 
 
+def analyze_purchase_patterns(
 
-def analyze_purchase_patterns(page, pageSize, search):
+    page,
 
-    offset, limit = get_pagination(page, pageSize)
+    pageSize,
 
-    data = get_purchase_patterns(search, offset, limit)
+    search,
+
+    filter_type,
+
+    start_date=None,
+
+    end_date=None
+):
+
+    offset, limit = get_pagination(
+        page,
+        pageSize
+    )
+
+    data = get_purchase_patterns(
+
+        search,
+
+        offset,
+
+        limit,
+
+        filter_type,
+
+        start_date,
+
+        end_date
+    )
 
     result = []
 
     for item in data:
 
-        pair_count = int(item.get("pair_count") or 0)
+        pair_count = int(
+            item.get("pair_count") or 0
+        )
 
-        # 🔥 PRODUCTION-GRADE ASSOCIATION STRENGTH
+        # ==========================================
+        # AI ASSOCIATION STRENGTH
+        # ==========================================
+
         if pair_count >= 100:
 
             strength = "VERY HIGH"
@@ -37,23 +72,38 @@ def analyze_purchase_patterns(page, pageSize, search):
 
         result.append({
 
-            "primary_product": item["primary_product"],
+            "primary_product":
+            item["primary_product"],
 
-            "frequently_bought_with": item["paired_product"],
+            "frequently_bought_with":
+            item["paired_product"],
 
-            "pair_count": pair_count,
+            "pair_count":
+            pair_count,
 
-            "strength": strength
+            "strength":
+            strength
         })
 
     return success_response(
-        message="Purchase patterns analyzed successfully.",
+
+        message=
+        "Purchase patterns analyzed successfully.",
 
         data=result,
 
         page=page,
+
+        pageSize=pageSize,
+
         total_records=len(result),
 
-        pageSize=pageSize
+        extra={
+
+            "filter": filter_type,
+
+            "start_date": start_date,
+
+            "end_date": end_date
+        }
     )
-  

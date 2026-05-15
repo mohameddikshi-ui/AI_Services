@@ -301,8 +301,69 @@ def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_d
         return [dict(row._mapping) for row in result]
 
 
-def get_purchase_patterns(search, offset, limit):
-    return []
+def get_purchase_patterns(
+    search,
+    offset,
+    limit,
+    filter_type,
+    start_date=None,
+    end_date=None
+):
+
+    query = text(f"""
+
+    SELECT
+
+        i1.fItemName AS primary_product,
+
+        i2.fItemName AS paired_product,
+
+        COUNT(*) AS pair_count
+
+    FROM ItemTransaction it1 WITH (NOLOCK)
+
+    INNER JOIN ItemTransaction it2
+        ON it1.fVoucher = it2.fVoucher
+        AND it1.fItemcode < it2.fItemcode
+
+    INNER JOIN Item i1
+        ON it1.fItemcode = i1.fItemcode
+
+    INNER JOIN Item i2
+        ON it2.fItemcode = i2.fItemcode
+
+    WHERE
+
+        i1.fItemName LIKE :search
+
+        AND ISNULL(it1.fTotQty, 0) > 0
+
+        AND ISNULL(it2.fTotQty, 0) > 0
+
+    GROUP BY
+
+        i1.fItemName,
+        i2.fItemName
+
+    ORDER BY pair_count DESC
+
+    OFFSET :offset ROWS
+    FETCH NEXT :limit ROWS ONLY
+
+    """)
+
+    with engine.connect() as conn:
+
+        result = conn.execute(query, {
+
+            "search": f"%{search}%",
+
+            "offset": offset,
+
+            "limit": limit
+        })
+
+        return [dict(row._mapping) for row in result]
 
 def get_category_performance(search, offset, limit, filter_type, start_date=None, end_date=None):
 
@@ -362,11 +423,135 @@ def get_category_performance(search, offset, limit, filter_type, start_date=None
         return [dict(row._mapping) for row in result]
 
 def get_seasonal_insights(month, offset, limit):
-    return []
+
+    month_filter = ""
+
+    if month:
+        month_filter = """
+        AND DATENAME(MONTH, it.fDate) = :month
+        """
+
+    query = text(f"""
+
+    SELECT
+
+        DATENAME(MONTH, it.fDate) AS month_name,
+
+        {CATEGORY_CASE} AS category,
+
+        SUM(ISNULL(it.fTotQty, 0)) AS total_orders
+
+    FROM ItemTransaction it WITH (NOLOCK)
+
+    INNER JOIN Item pd
+        ON it.fItemcode = pd.fItemcode
+
+    WHERE
+
+        ISNULL(it.fTotQty, 0) > 0
+
+        {month_filter}
+
+    GROUP BY
+
+        DATENAME(MONTH, it.fDate),
+
+        {CATEGORY_CASE}
+
+    ORDER BY
+
+        total_orders DESC
+
+    OFFSET :offset ROWS
+    FETCH NEXT :limit ROWS ONLY
+
+    """)
+
+    params = {
+
+        "offset": offset,
+
+        "limit": limit
+    }
+
+    if month:
+        params["month"] = month
+
+    with engine.connect() as conn:
+
+        result = conn.execute(query, params)
+
+        return [dict(row._mapping) for row in result]
 
 
 def get_auto_insights_data(offset, limit):
-    return {
-        "records": [],
-        "total_records": 0
-    }
+
+    data_query = text(f"""
+
+    SELECT
+
+        pd.fItemcode AS Fitemcode,
+
+        pd.fItemName AS FitemName,
+
+        {CATEGORY_CASE} AS category,
+
+        SUM(ISNULL(it.fTotQty, 0)) AS total_orders,
+
+        SUM(ISNULL(it.fAmount, 0)) AS total_sales
+
+    FROM ItemTransaction it WITH (NOLOCK)
+
+    INNER JOIN Item pd
+        ON it.fItemcode = pd.fItemcode
+
+    WHERE
+
+        ISNULL(it.fTotQty, 0) > 0
+
+    GROUP BY
+
+        pd.fItemcode,
+
+        pd.fItemName,
+
+        {CATEGORY_CASE}
+
+    ORDER BY total_orders DESC
+
+    OFFSET :offset ROWS
+    FETCH NEXT :limit ROWS ONLY
+
+    """)
+
+    count_query = text("""
+
+    SELECT COUNT(DISTINCT fItemcode)
+
+    FROM ItemTransaction
+
+    WHERE ISNULL(fTotQty, 0) > 0
+
+    """)
+
+    with engine.connect() as conn:
+
+        data_result = conn.execute(data_query, {
+
+            "offset": offset,
+
+            "limit": limit
+        })
+
+        count_result = conn.execute(count_query)
+
+        total_records = count_result.scalar()
+
+        return {
+
+            "records":
+            [dict(row._mapping) for row in data_result],
+
+            "total_records":
+            total_records
+        }

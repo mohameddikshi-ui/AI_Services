@@ -1,41 +1,33 @@
-# from sqlalchemy import text
-# from app.core.db import engine
+from sqlalchemy import text
 
-# query = text("""
+from app.core.db import engine
 
-# SELECT TOP 20
 
-#     pd.Fitemcode,
-#     pd.FitemName,
-#     c.fcate,
-#     SUM(ISNULL(it.fTotQty, 0)) AS recent_sales
+query = text("""
 
-# FROM ProductDetails pd
+SELECT TOP 20
 
-# LEFT JOIN ItemTransaction it
-#     ON pd.Fitemcode = it.fItemcode
+    fItemcode,
+    fItemName,
+    fParent,
+    fAclevel,
+    fShow
 
-# LEFT JOIN category c
-#     ON pd.FcategoryCode = c.Fcode
+FROM Item
 
-# GROUP BY
+WHERE fAclevel = -3
 
-#     pd.Fitemcode,
-#     pd.FitemName,
-#     c.fcate
+ORDER BY fItemcode
 
-# HAVING SUM(ISNULL(it.fTotQty, 0)) = 0
+""")
 
-# ORDER BY pd.FitemName
 
-# """)
+with engine.connect() as conn:
 
-# with engine.connect() as conn:
+    result = conn.execute(query)
 
-#     result = conn.execute(query)
+    print("\n📌 SELLABLE ITEMS\n")
 
-#     print("\n📌 DEAD STOCK CHECK\n")
+    for row in result:
 
-#     for row in result:
-
-#         print(dict(row._mapping))
+        print(dict(row._mapping))
