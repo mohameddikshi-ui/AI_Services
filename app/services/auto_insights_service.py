@@ -51,6 +51,8 @@ def generate_auto_insights(
     offset,
 
     limit,
+    
+    filter_type,
 
     start_date,
 

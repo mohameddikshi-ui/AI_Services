@@ -520,6 +520,8 @@ def get_auto_insights_data(
 
     limit,
 
+    filter_type=None,
+
     start_date=None,
 
     end_date=None
@@ -527,7 +529,28 @@ def get_auto_insights_data(
 
     date_filter = ""
 
-    if start_date and end_date:
+    # Weekly filter
+    if filter_type == "weekly":
+
+        date_filter = """
+
+        AND CAST(it.fDate AS DATE) >=
+        CAST(DATEADD(DAY, -7, GETDATE()) AS DATE)
+
+        """
+
+    # Monthly filter
+    elif filter_type == "monthly":
+
+        date_filter = """
+
+        AND CAST(it.fDate AS DATE) >=
+        CAST(DATEADD(MONTH, -1, GETDATE()) AS DATE)
+
+        """
+
+    # Custom date filter
+    elif start_date and end_date:
 
         date_filter = """
 
