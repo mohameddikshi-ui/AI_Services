@@ -422,13 +422,34 @@ def get_category_performance(search, offset, limit, filter_type, start_date=None
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
 
-def get_seasonal_insights(month, offset, limit):
+def get_seasonal_insights(
+
+    month,
+
+    offset,
+
+    limit,
+
+    start_date=None,
+
+    end_date=None
+):
 
     month_filter = ""
 
+    custom_date_filter = ""
+
     if month:
+
         month_filter = """
         AND DATENAME(MONTH, it.fDate) = :month
+        """
+
+    if start_date and end_date:
+
+        custom_date_filter = """
+        AND it.fDate >= :start_date
+        AND it.fDate < DATEADD(DAY, 1, :end_date)
         """
 
     query = text(f"""
@@ -451,6 +472,8 @@ def get_seasonal_insights(month, offset, limit):
         ISNULL(it.fTotQty, 0) > 0
 
         {month_filter}
+
+        {custom_date_filter}
 
     GROUP BY
 
@@ -475,7 +498,14 @@ def get_seasonal_insights(month, offset, limit):
     }
 
     if month:
+
         params["month"] = month
+
+    if start_date and end_date:
+
+        params["start_date"] = start_date
+
+        params["end_date"] = end_date
 
     with engine.connect() as conn:
 

@@ -8,35 +8,37 @@ from app.utils.response import (
 
 
 def analyze_seasonal_insights(
-    page,
-    pageSize,
-    month
-):
 
-    # ==========================================
-    # PAGINATION
-    # ==========================================
+    page,
+
+    pageSize,
+
+    month,
+
+    start_date=None,
+
+    end_date=None
+):
 
     offset, limit = get_pagination(
         page,
         pageSize
     )
 
-    # ==========================================
-    # FETCH DB DATA
-    # ==========================================
-
     data = get_seasonal_insights(
+
         month,
+
         offset,
-        limit
+
+        limit,
+
+        start_date,
+
+        end_date
     )
 
     result = []
-
-    # ==========================================
-    # AI SEASONAL ANALYSIS
-    # ==========================================
 
     for item in data:
 
@@ -45,53 +47,58 @@ def analyze_seasonal_insights(
         )
 
         # ==========================================
-        # SEASONAL TREND CLASSIFICATION
+        # DEMAND CLASSIFICATION
         # ==========================================
 
         if total_orders >= 1000:
 
             seasonal_trend = "PEAK DEMAND"
 
-            data_confidence = "HIGH"
-
         elif total_orders >= 500:
 
             seasonal_trend = "HIGH DEMAND"
-
-            data_confidence = "HIGH"
 
         elif total_orders >= 100:
 
             seasonal_trend = "MODERATE DEMAND"
 
-            data_confidence = "MEDIUM"
-
         else:
 
             seasonal_trend = "LOW DEMAND"
 
-            data_confidence = "LOW"
+        # ==========================================
+        # DATA CONFIDENCE
+        # ==========================================
 
-        # ==========================================
-        # FINAL OBJECT
-        # ==========================================
+        if total_orders >= 1000:
+
+            data_confidence = "HIGH"
+
+        elif total_orders >= 100:
+
+            data_confidence = "MEDIUM"
+
+        else:
+
+            data_confidence = "LOW"
 
         result.append({
 
-            "month": item.get("month_name"),
+            "month":
+            item.get("month_name"),
 
-            "category": item.get("category"),
+            "category":
+            item.get("category"),
 
-            "total_orders": total_orders,
+            "total_orders":
+            total_orders,
 
-            "seasonal_trend": seasonal_trend,
+            "seasonal_trend":
+            seasonal_trend,
 
-            "data_confidence": data_confidence
+            "data_confidence":
+            data_confidence
         })
-
-    # ==========================================
-    # FINAL RESPONSE
-    # ==========================================
 
     return success_response(
 
@@ -106,8 +113,12 @@ def analyze_seasonal_insights(
 
         total_records=len(result),
 
-       extra={
+        extra={
 
-        "month": month
-    }
+            "month": month,
+
+            "start_date": start_date,
+
+            "end_date": end_date
+        }
     )

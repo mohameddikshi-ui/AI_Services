@@ -12,11 +12,22 @@ def seasonal_insights(
 
     pageSize: int = 10,
 
-    month: str = ""
+    month: str = None,
+
+    start_date: str = None,
+
+    end_date: str = None
 ):
 
     return analyze_seasonal_insights(
+
         page,
+
         pageSize,
-        month
+
+        month,
+
+        start_date,
+
+        end_date
     )
