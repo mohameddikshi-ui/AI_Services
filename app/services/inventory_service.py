@@ -1,15 +1,6 @@
 from app.repository.inventory_repo import get_inventory_data
 from app.utils.pagination import get_pagination
-from app.utils.calculations import (
-    calculate_avg_daily,
-    calculate_recommended
-)
-from app.utils.response import (
-    success_response
-)
-
-
-
+from app.utils.response import success_response
 
 
 def get_demand_level(avg):
@@ -20,43 +11,62 @@ def get_demand_level(avg):
     return "LOW"
 
 
-def calculate_inventory(page, pageSize, search):
+def calculate_inventory(page, pageSize, search, filter_type="monthly", start_date=None, end_date=None):
 
     offset, limit = get_pagination(page, pageSize)
 
-    data = get_inventory_data(search, offset, limit)
+    data = get_inventory_data(
+        search,
+        offset,
+        limit,
+        filter_type,
+        start_date,
+        end_date
+    )
 
     result = []
 
     for item in data:
-        total_sales = item.get("total_sales", 0)
+        current_stock = int(item.get("current_stock") or 0)
+        historical_sales = float(item.get("historical_sales") or 0)
+        avg_daily_sales = float(item.get("avg_daily_sales") or 0)
 
-        avg_daily = calculate_avg_daily(total_sales)
-        recommended = calculate_recommended(avg_daily)
+        if filter_type == "weekly":
+            required_stock = round(avg_daily_sales * 7)
+        else:
+            required_stock = round(avg_daily_sales * 30)
 
-        image = item.get("Fimg1")
-        image_url = image if image else None
+        recommended_stock = round(required_stock * 1.2)
 
+        if current_stock <= 0:
+            stock_status = "OUT OF STOCK"
+        elif current_stock < required_stock:
+            stock_status = "LOW STOCK"
+        elif current_stock < recommended_stock:
+            stock_status = "NEED REORDER"
+        else:
+            stock_status = "SUFFICIENT STOCK"
 
         result.append({
-            "product_id": item["fItemcode"],
+            "product_id": item["Fitemcode"],
             "product_name": item["FitemName"],
-            "image": image_url,
             "category": item.get("category"),
-
-            # 🔥 IMPORTANT CHANGE
-            "current_stock": None,   # ❗ NOT 0
-
-            "total_sales": total_sales,
-            "avg_daily_sales": round(avg_daily, 3),
-            "demand_level": get_demand_level(avg_daily),
-            "recommended_stock": recommended
+            "current_stock": current_stock,
+            "historical_sales": historical_sales,
+            "average_daily_sales": round(avg_daily_sales, 2),
+            "required_stock": required_stock,
+            "recommended_stock": recommended_stock,
+            "demand_level": get_demand_level(avg_daily_sales),
+            "stock_status": stock_status
         })
 
     return success_response(
-        message="Inventory data fetched successfully.",
+        message="Inventory recommendation fetched successfully.",
         data=result,
-        page=page,  
+        page=page,
+        pageSize=pageSize,
         total_records=len(result),
-        pageSize=pageSize
-    )   
+        extra={
+            "filter": filter_type
+        }
+    )
