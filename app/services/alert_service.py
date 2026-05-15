@@ -1,147 +1,86 @@
 from app.repository.stock_repo import get_alert_data
-
-from app.utils.pagination import (
-    get_pagination
-)
-
-from app.utils.response import (
-    success_response
-)
+from app.utils.pagination import get_pagination
+from app.utils.response import success_response
 
 
+def get_smart_alerts(page, pageSize, search, filter_type="monthly", start_date=None, end_date=None):
 
-def get_smart_alerts(page, pageSize, search):
-
-    # ==========================================
-    # PAGINATION
-    # ==========================================
-
-    offset, limit = get_pagination(
-        page,
-        pageSize
-    )
-
-    # ==========================================
-    # FETCH DATA
-    # ==========================================
+    offset, limit = get_pagination(page, pageSize)
 
     data = get_alert_data(
         search,
         offset,
-        limit
+        limit,
+        filter_type,
+        start_date,
+        end_date
     )
 
     result = []
 
-    # ==========================================
-    # PROCESS ALERTS
-    # ==========================================
-
     for item in data:
 
-        image = item.get("Fimg1")
+        current_stock = int(item.get("current_stock") or 0)
+        recent_sales = float(item.get("recent_sales") or 0)
+        avg_daily_sales = float(item.get("avg_daily_sales") or 0)
 
-        # ==========================================
-        # IMAGE CLEANING
-        # ==========================================
-
-        if image:
-
-            image = image.strip()
-
-            image = image.replace(" ", "")
-
-            image = image.replace("[", "")
-
-            image = image.replace("]", "")
-
-        image_url = image if image else None
-    
-        total_sales = float(
-            item.get("total_sales") or 0
-        )
-
-        # ==========================================
-        # AI ALERT ENGINE
-        # ==========================================
-
-        if total_sales >= 100:
-
-            alert_type = "HIGH DEMAND"
-
-            severity = "HIGH"
-
-            recommendation = (
-                "Restock immediately"
-            )
-
-        elif total_sales >= 40:
-
-            alert_type = "FAST MOVING"
-
-            severity = "MEDIUM"
-
-            recommendation = (
-                "Monitor inventory closely"
-            )
-
-        elif total_sales == 0:
-
-            alert_type = "DEAD STOCK"
-
-            severity = "HIGH"
-
-            recommendation = (
-                "Consider promotion or clearance"
-            )
-
+        if filter_type == "weekly":
+            required_stock = round(avg_daily_sales * 7)
         else:
+            required_stock = round(avg_daily_sales * 30)
 
-            alert_type = "NORMAL"
+        recommended_stock = round(required_stock * 1.2)
 
-            severity = "LOW"
+        alert_type = "NORMAL"
+        severity = "LOW"
+        recommendation = "Stock level is stable"
 
-            recommendation = (
-                "Stock level stable"
-            )
+        if current_stock <= 0:
+            alert_type = "OUT_OF_STOCK"
+            severity = "CRITICAL"
+            recommendation = "Restock immediately"
 
-        # ==========================================
-        # FINAL ALERT OBJECT
-        # ==========================================
+        elif recent_sales == 0:
+            alert_type = "NO_RECENT_SALES"
+            severity = "MEDIUM"
+            recommendation = "Consider promotion or clearance"
+
+        elif current_stock < required_stock:
+            alert_type = "LOW_STOCK"
+            severity = "HIGH"
+            recommendation = "Stock is below expected demand. Reorder soon"
+
+        elif current_stock < recommended_stock:
+            alert_type = "REORDER_REQUIRED"
+            severity = "MEDIUM"
+            recommendation = "Stock is below recommended safety level"
+
+        elif avg_daily_sales >= 2:
+            alert_type = "FAST_MOVING"
+            severity = "MEDIUM"
+            recommendation = "Monitor stock frequently due to high sales speed"
 
         result.append({
-
             "product_id": item["Fitemcode"],
-
             "product_name": item["FitemName"],
-
-            "image": image_url,
-
             "category": item.get("category"),
-
-            "total_sales": total_sales,
-
+            "current_stock": current_stock,
+            "recent_sales": recent_sales,
+            "average_daily_sales": round(avg_daily_sales, 2),
+            "required_stock": required_stock,
+            "recommended_stock": recommended_stock,
             "alert_type": alert_type,
-
             "severity": severity,
-
             "recommendation": recommendation
         })
 
-    # ==========================================
-    # STANDARD RESPONSE
-    # ==========================================
-
     return success_response(
-
-        message=
-        "Smart alerts fetched successfully.",
-
+        message="Smart alerts fetched successfully.",
         data=result,
-
         page=page,
-
         pageSize=pageSize,
-
-        total_records=len(result)
+        total_records=len(result),
+        extra={
+            "filter": filter_type
+        }
     )
