@@ -15,7 +15,14 @@ END
 """
 
 
-def get_alert_data(search, offset, limit, filter_type="monthly", start_date=None, end_date=None):
+def get_alert_data(
+    search,
+    offset,
+    limit,
+    filter_type="monthly",
+    start_date=None,
+    end_date=None
+):
 
     date_filter = ""
     custom_date_filter = ""
