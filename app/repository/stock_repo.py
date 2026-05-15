@@ -25,24 +25,41 @@ def get_alert_data(
 ):
 
     date_filter = ""
-    custom_date_filter = ""
 
+    # Weekly filter
     if filter_type == "weekly":
-        date_filter = "AND it.fDate >= DATEADD(DAY, -7, GETDATE())"
 
+        date_filter = """
+        AND it.fDate >= DATEADD(DAY, -7, GETDATE())
+        """
+
+    # Monthly filter
     elif filter_type == "monthly":
-        date_filter = "AND it.fDate >= DATEADD(MONTH, -1, GETDATE())"
 
-    if start_date and end_date:
-        custom_date_filter = """
+        date_filter = """
+        AND it.fDate >= DATEADD(MONTH, -1, GETDATE())
+        """
+
+    # Custom date filter
+    elif start_date and end_date:
+
+        date_filter = """
         AND it.fDate >= :start_date
         AND it.fDate < DATEADD(DAY, 1, :end_date)
         """
 
+    # ==========================================
+    # MAIN QUERY
+    # ==========================================
+
     query = text(f"""
+
     SELECT
+
         pd.fItemcode AS Fitemcode,
+
         pd.fItemName AS FitemName,
+
         {CATEGORY_CASE} AS category,
 
         ISNULL(st.current_stock, 0) AS current_stock,
@@ -53,7 +70,8 @@ def get_alert_data(
 
         CASE 
             WHEN COUNT(DISTINCT CAST(it.fDate AS DATE)) > 0
-            THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 / COUNT(DISTINCT CAST(it.fDate AS DATE))
+            THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 /
+                 COUNT(DISTINCT CAST(it.fDate AS DATE))
             ELSE 0
         END AS avg_daily_sales
 
@@ -73,34 +91,100 @@ def get_alert_data(
     LEFT JOIN ItemTransaction it
         ON pd.fItemcode = it.fItemcode
         {date_filter}
-        {custom_date_filter}
 
-    WHERE pd.fItemName LIKE :search
-    AND pd.fItemcode IS NOT NULL
-    AND LTRIM(RTRIM(pd.fItemcode)) <> ''
+    WHERE
+
+        (:search = '' OR pd.fItemName LIKE :search)
+
+        AND pd.fItemcode IS NOT NULL
+
+        AND LTRIM(RTRIM(pd.fItemcode)) <> ''
 
     GROUP BY
+
         pd.fItemcode,
+
         pd.fItemName,
+
         st.current_stock,
+
         {CATEGORY_CASE}
 
     ORDER BY recent_sales DESC
 
     OFFSET :offset ROWS
     FETCH NEXT :limit ROWS ONLY
+
+    """)
+
+    # ==========================================
+    # COUNT QUERY
+    # ==========================================
+
+    count_query = text(f"""
+
+    SELECT COUNT(*) FROM (
+
+        SELECT
+
+            pd.fItemcode
+
+        FROM Item pd
+
+        LEFT JOIN ItemTransaction it
+            ON pd.fItemcode = it.fItemcode
+            {date_filter}
+
+        WHERE
+
+            (:search = '' OR pd.fItemName LIKE :search)
+
+            AND pd.fItemcode IS NOT NULL
+
+            AND LTRIM(RTRIM(pd.fItemcode)) <> ''
+
+        GROUP BY
+
+            pd.fItemcode
+
+    ) AS grouped_items
+
     """)
 
     params = {
-        "search": f"%{search}%",
+
+        "search": f"%{search}%" if search else "",
+
         "offset": offset,
+
         "limit": limit
     }
 
     if start_date and end_date:
+
         params["start_date"] = start_date
+
         params["end_date"] = end_date
 
     with engine.connect() as conn:
+
+        # Fetch records
         result = conn.execute(query, params)
-        return [dict(row._mapping) for row in result]
+
+        records = [
+            dict(row._mapping)
+            for row in result
+        ]
+
+        # Fetch total count
+        total_records = conn.execute(
+            count_query,
+            params
+        ).scalar()
+
+        return {
+
+            "records": records,
+
+            "total_records": total_records
+        }

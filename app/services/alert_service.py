@@ -1,13 +1,24 @@
+import math
+
 from app.repository.stock_repo import get_alert_data
+
 from app.utils.pagination import get_pagination
+
 from app.utils.response import success_response
 
 
-def get_smart_alerts(page, pageSize, search, filter_type="monthly", start_date=None, end_date=None):
+def get_smart_alerts(
+    page,
+    pageSize,
+    search,
+    filter_type="monthly",
+    start_date=None,
+    end_date=None
+):
 
     offset, limit = get_pagination(page, pageSize)
 
-    data = get_alert_data(
+    response = get_alert_data(
         search,
         offset,
         limit,
@@ -16,71 +27,191 @@ def get_smart_alerts(page, pageSize, search, filter_type="monthly", start_date=N
         end_date
     )
 
+    data = response["records"]
+
+    total_records = response["total_records"]
+
+    total_pages = math.ceil(
+        total_records / limit
+    ) if limit > 0 else 1
+
     result = []
 
     for item in data:
 
-        current_stock = int(item.get("current_stock") or 0)
-        recent_sales = float(item.get("recent_sales") or 0)
-        avg_daily_sales = float(item.get("avg_daily_sales") or 0)
+        current_stock = int(
+            item.get("current_stock") or 0
+        )
+
+        recent_sales = float(
+            item.get("recent_sales") or 0
+        )
+
+        avg_daily_sales = float(
+            item.get("avg_daily_sales") or 0
+        )
+
+        # ==========================================
+        # REQUIRED STOCK CALCULATION
+        # ==========================================
 
         if filter_type == "weekly":
-            required_stock = round(avg_daily_sales * 7)
-        else:
-            required_stock = round(avg_daily_sales * 30)
 
-        recommended_stock = round(required_stock * 1.2)
+            required_stock = round(
+                avg_daily_sales * 7
+            )
+
+            analyzed_period = "Last 7 Days"
+
+        else:
+
+            required_stock = round(
+                avg_daily_sales * 30
+            )
+
+            analyzed_period = "Last 1 Month"
+
+        # Safety stock
+        recommended_stock = round(
+            required_stock * 1.2
+        )
+
+        # ==========================================
+        # ALERT ENGINE
+        # ==========================================
 
         alert_type = "NORMAL"
+
         severity = "LOW"
-        recommendation = "Stock level is stable"
+
+        recommendation = (
+            "Stock level is stable"
+        )
 
         if current_stock <= 0:
+
             alert_type = "OUT_OF_STOCK"
+
             severity = "CRITICAL"
-            recommendation = "Restock immediately"
+
+            recommendation = (
+                "Restock immediately"
+            )
 
         elif recent_sales == 0:
+
             alert_type = "NO_RECENT_SALES"
+
             severity = "MEDIUM"
-            recommendation = "Consider promotion or clearance"
+
+            recommendation = (
+                "Consider promotion or clearance"
+            )
 
         elif current_stock < required_stock:
+
             alert_type = "LOW_STOCK"
+
             severity = "HIGH"
-            recommendation = "Stock is below expected demand. Reorder soon"
+
+            recommendation = (
+                "Stock is below expected demand. Reorder soon"
+            )
 
         elif current_stock < recommended_stock:
+
             alert_type = "REORDER_REQUIRED"
+
             severity = "MEDIUM"
-            recommendation = "Stock is below recommended safety level"
+
+            recommendation = (
+                "Stock is below recommended safety level"
+            )
 
         elif avg_daily_sales >= 2:
+
             alert_type = "FAST_MOVING"
+
             severity = "MEDIUM"
-            recommendation = "Monitor stock frequently due to high sales speed"
+
+            recommendation = (
+                "Monitor stock frequently due to high sales speed"
+            )
 
         result.append({
-            "product_id": item["Fitemcode"],
-            "product_name": item["FitemName"],
-            "category": item.get("category"),
-            "current_stock": current_stock,
-            "recent_sales": recent_sales,
-            "average_daily_sales": round(avg_daily_sales, 2),
-            "required_stock": required_stock,
-            "recommended_stock": recommended_stock,
-            "alert_type": alert_type,
-            "severity": severity,
-            "recommendation": recommendation
+
+            "product_id":
+            item["Fitemcode"],
+
+            "product_name":
+            item["FitemName"],
+
+            "category":
+            item.get("category"),
+
+            "current_stock":
+            current_stock,
+
+            "recent_sales":
+            recent_sales,
+
+            "average_daily_sales":
+            round(avg_daily_sales, 2),
+
+            "required_stock":
+            required_stock,
+
+            "recommended_stock":
+            recommended_stock,
+
+            "alert_type":
+            alert_type,
+
+            "severity":
+            severity,
+
+            "recommendation":
+            recommendation
         })
 
+    # ==========================================
+    # CUSTOM DATE LABEL
+    # ==========================================
+
+    if start_date and end_date:
+
+        analyzed_period = (
+            f"{start_date} to {end_date}"
+        )
+
     return success_response(
-        message="Smart alerts fetched successfully.",
+
+        message=
+        "Smart alerts fetched successfully.",
+
         data=result,
+
         page=page,
-        pageSize=pageSize,
-        total_records=len(result),
+
+        pageSize=limit,
+
+        total_records=total_records,
+
         extra={
-            "filter": filter_type
+
+            "total_pages":
+            total_pages,
+
+            "filter":
+            filter_type,
+
+            "analyzed_period":
+            analyzed_period,
+
+            "start_date":
+            start_date,
+
+            "end_date":
+            end_date
         }
     )
