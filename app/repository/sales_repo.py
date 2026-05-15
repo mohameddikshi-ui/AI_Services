@@ -14,6 +14,9 @@ CASE
 END
 """
 
+# ============================================================
+# =top selling products
+# ==========================================================
 
 def get_top_selling_data(search, offset, limit, filter_type, start_date=None, end_date=None):
 
@@ -73,6 +76,10 @@ def get_top_selling_data(search, offset, limit, filter_type, start_date=None, en
     with engine.connect() as conn:
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
+# ============================================================
+# dead stock and slow moving
+# ==========================================================
+
 
 
 def get_dead_stock_data(search, offset, limit, start_date=None, end_date=None):
@@ -156,6 +163,10 @@ def get_dead_stock_data(search, offset, limit, start_date=None, end_date=None):
     with engine.connect() as conn:
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
+# ============================================================
+# trend analysis
+# ==========================================================
+
 
 
 def get_trend_data(search, offset, limit, filter_type):
@@ -229,6 +240,10 @@ def get_trend_data(search, offset, limit, filter_type):
         })
 
         return [dict(row._mapping) for row in result]
+# ============================================================
+# forecasting 
+# ==========================================================
+
 
 
 def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_date=None):
@@ -299,8 +314,9 @@ def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_d
     with engine.connect() as conn:
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
-
-
+# ============================================================
+# purchase patterns
+# ==========================================================
 def get_purchase_patterns(
     search,
     offset,
@@ -309,6 +325,43 @@ def get_purchase_patterns(
     start_date=None,
     end_date=None
 ):
+
+    date_filter = ""
+
+    # Weekly filter
+    if filter_type == "weekly":
+
+        date_filter = """
+
+        AND CAST(it1.fDate AS DATE) >=
+        CAST(DATEADD(DAY, -7, GETDATE()) AS DATE)
+
+        """
+
+    # Monthly filter
+    elif filter_type == "monthly":
+
+        date_filter = """
+
+        AND CAST(it1.fDate AS DATE) >=
+        CAST(DATEADD(MONTH, -1, GETDATE()) AS DATE)
+
+        """
+
+    # Custom date filter
+    elif start_date and end_date:
+
+        date_filter = """
+
+        AND it1.fDate >= :start_date
+
+        AND it1.fDate < DATEADD(DAY, 1, :end_date)
+
+        """
+
+    # ==========================================
+    # MAIN DATA QUERY
+    # ==========================================
 
     query = text(f"""
 
@@ -334,15 +387,18 @@ def get_purchase_patterns(
 
     WHERE
 
-        i1.fItemName LIKE :search
+        (:search = '' OR i1.fItemName LIKE :search)
 
         AND ISNULL(it1.fTotQty, 0) > 0
 
         AND ISNULL(it2.fTotQty, 0) > 0
 
+        {date_filter}
+
     GROUP BY
 
         i1.fItemName,
+
         i2.fItemName
 
     ORDER BY pair_count DESC
@@ -352,18 +408,96 @@ def get_purchase_patterns(
 
     """)
 
+    # ==========================================
+    # COUNT QUERY
+    # ==========================================
+
+    count_query = text(f"""
+
+    SELECT COUNT(*) FROM (
+
+        SELECT
+
+            i1.fItemName AS primary_product,
+
+            i2.fItemName AS paired_product
+
+        FROM ItemTransaction it1 WITH (NOLOCK)
+
+        INNER JOIN ItemTransaction it2
+            ON it1.fVoucher = it2.fVoucher
+            AND it1.fItemcode < it2.fItemcode
+
+        INNER JOIN Item i1
+            ON it1.fItemcode = i1.fItemcode
+
+        INNER JOIN Item i2
+            ON it2.fItemcode = i2.fItemcode
+
+        WHERE
+
+            (:search = '' OR i1.fItemName LIKE :search)
+
+            AND ISNULL(it1.fTotQty, 0) > 0
+
+            AND ISNULL(it2.fTotQty, 0) > 0
+
+            {date_filter}
+
+        GROUP BY
+
+            i1.fItemName,
+
+            i2.fItemName
+
+    ) AS grouped_pairs
+
+    """)
+
+    params = {
+
+        "search": f"%{search}%" if search else "",
+
+        "offset": offset,
+
+        "limit": limit
+    }
+
+    # Add custom date params only if provided
+    if start_date and end_date:
+
+        params["start_date"] = start_date
+
+        params["end_date"] = end_date
+
     with engine.connect() as conn:
 
-        result = conn.execute(query, {
+        # Fetch records
+        result = conn.execute(
+            query,
+            params
+        )
 
-            "search": f"%{search}%",
+        records = [
+            dict(row._mapping)
+            for row in result
+        ]
 
-            "offset": offset,
+        # Fetch total count
+        total_records = conn.execute(
+            count_query,
+            params
+        ).scalar()
 
-            "limit": limit
-        })
+        return {
 
-        return [dict(row._mapping) for row in result]
+            "records": records,
+
+            "total_records": total_records
+        }
+# ============================================================
+# category performance
+# ==========================================================
 
 def get_category_performance(search, offset, limit, filter_type, start_date=None, end_date=None):
 
@@ -421,6 +555,9 @@ def get_category_performance(search, offset, limit, filter_type, start_date=None
     with engine.connect() as conn:
         result = conn.execute(query, params)
         return [dict(row._mapping) for row in result]
+# ============================================================
+# seasonal insights
+# ==========================================================
 
 def get_seasonal_insights(
 
@@ -512,7 +649,9 @@ def get_seasonal_insights(
         result = conn.execute(query, params)
 
         return [dict(row._mapping) for row in result]
-
+# ============================================================
+# ai auto insights
+# ==========================================================
 
 def get_auto_insights_data(
 

@@ -1,4 +1,8 @@
-from app.repository.sales_repo import get_purchase_patterns
+import math
+
+from app.repository.sales_repo import (
+    get_purchase_patterns
+)
 
 from app.utils.pagination import get_pagination
 
@@ -27,7 +31,7 @@ def analyze_purchase_patterns(
         pageSize
     )
 
-    data = get_purchase_patterns(
+    response = get_purchase_patterns(
 
         search,
 
@@ -41,6 +45,14 @@ def analyze_purchase_patterns(
 
         end_date
     )
+
+    data = response["records"]
+
+    total_records = response["total_records"]
+
+    total_pages = math.ceil(
+        total_records / limit
+    ) if limit > 0 else 1
 
     result = []
 
@@ -85,6 +97,24 @@ def analyze_purchase_patterns(
             strength
         })
 
+    # ==========================================
+    # ANALYZED PERIOD
+    # ==========================================
+
+    analyzed_period = "Overall"
+
+    if filter_type == "weekly":
+
+        analyzed_period = "Last 7 Days"
+
+    elif filter_type == "monthly":
+
+        analyzed_period = "Last 1 Month"
+
+    elif start_date and end_date:
+
+        analyzed_period = f"{start_date} to {end_date}"
+
     return success_response(
 
         message=
@@ -94,13 +124,17 @@ def analyze_purchase_patterns(
 
         page=page,
 
-        pageSize=pageSize,
+        pageSize=limit,
 
-        total_records=len(result),
+        total_records=total_records,
 
         extra={
 
+            "total_pages": total_pages,
+
             "filter": filter_type,
+
+            "analyzed_period": analyzed_period,
 
             "start_date": start_date,
 
