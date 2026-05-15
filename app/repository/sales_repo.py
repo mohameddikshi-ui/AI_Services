@@ -514,7 +514,28 @@ def get_seasonal_insights(
         return [dict(row._mapping) for row in result]
 
 
-def get_auto_insights_data(offset, limit):
+def get_auto_insights_data(
+
+    offset,
+
+    limit,
+
+    start_date=None,
+
+    end_date=None
+):
+
+    date_filter = ""
+
+    if start_date and end_date:
+
+        date_filter = """
+
+        AND it.fDate >= :start_date
+
+        AND it.fDate < DATEADD(DAY, 1, :end_date)
+
+        """
 
     data_query = text(f"""
 
@@ -528,16 +549,37 @@ def get_auto_insights_data(offset, limit):
 
         SUM(ISNULL(it.fTotQty, 0)) AS total_orders,
 
-        SUM(ISNULL(it.fAmount, 0)) AS total_sales
+        SUM(ISNULL(it.fAmount, 0)) AS total_sales,
+
+        ISNULL(s.current_stock, 0) AS current_stock
 
     FROM ItemTransaction it WITH (NOLOCK)
 
     INNER JOIN Item pd
         ON it.fItemcode = pd.fItemcode
 
+    LEFT JOIN (
+
+        SELECT
+
+            Itemcode,
+
+            SUM(ISNULL(Qty, 0)) AS current_stock
+
+        FROM Stock
+
+        WHERE Itemcode IS NOT NULL
+
+        GROUP BY Itemcode
+
+    ) s
+        ON pd.fItemcode = s.Itemcode
+
     WHERE
 
         ISNULL(it.fTotQty, 0) > 0
+
+        {date_filter}
 
     GROUP BY
 
@@ -545,7 +587,9 @@ def get_auto_insights_data(offset, limit):
 
         pd.fItemName,
 
-        {CATEGORY_CASE}
+        {CATEGORY_CASE},
+
+        s.current_stock
 
     ORDER BY total_orders DESC
 
@@ -554,34 +598,57 @@ def get_auto_insights_data(offset, limit):
 
     """)
 
-    count_query = text("""
+    count_query = text(f"""
 
-    SELECT COUNT(DISTINCT fItemcode)
+    SELECT COUNT(DISTINCT it.fItemcode)
 
-    FROM ItemTransaction
+    FROM ItemTransaction it
 
-    WHERE ISNULL(fTotQty, 0) > 0
+    WHERE
+
+        ISNULL(it.fTotQty, 0) > 0
+
+        {date_filter}
 
     """)
 
+    params = {
+
+        "offset": offset,
+
+        "limit": limit
+    }
+
+    if start_date and end_date:
+
+        params["start_date"] = start_date
+
+        params["end_date"] = end_date
+
     with engine.connect() as conn:
 
-        data_result = conn.execute(data_query, {
+        data_result = conn.execute(
+            data_query,
+            params
+        )
 
-            "offset": offset,
+        records = [
 
-            "limit": limit
-        })
+            dict(row._mapping)
 
-        count_result = conn.execute(count_query)
+            for row in data_result.fetchall()
+        ]
+
+        count_result = conn.execute(
+            count_query,
+            params
+        )
 
         total_records = count_result.scalar()
 
         return {
 
-            "records":
-            [dict(row._mapping) for row in data_result],
+            "records": records,
 
-            "total_records":
-            total_records
+            "total_records": total_records
         }

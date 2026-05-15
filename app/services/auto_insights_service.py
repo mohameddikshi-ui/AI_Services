@@ -20,7 +20,18 @@ from app.constants.thresholds import (
 )
 
 
-def generate_auto_insights(page, pageSize):
+def generate_auto_insights(
+
+    page,
+
+    pageSize,
+
+    filter_type="overall",
+
+    start_date=None,
+
+    end_date=None
+):
 
     # ==========================================
     # PAGINATION
@@ -36,9 +47,15 @@ def generate_auto_insights(page, pageSize):
     # ==========================================
 
     db_data = get_auto_insights_data(
-        offset,
-        limit
-    )
+
+    offset,
+
+    limit,
+
+    start_date,
+
+    end_date
+)
 
     data = db_data["records"]
 
@@ -69,6 +86,10 @@ def generate_auto_insights(page, pageSize):
             item.get("total_orders") or 0
         )
 
+        current_stock = float(
+            item.get("current_stock") or 0
+        )
+
         product_id = item.get("Fitemcode")
 
         product_name = item.get("FitemName")
@@ -92,7 +113,28 @@ def generate_auto_insights(page, pageSize):
         # AI DEMAND CLASSIFICATION
         # ==========================================
 
-        if demand_score >= HIGH_DEMAND_PERCENTILE:
+        if (
+
+            demand_score >= HIGH_DEMAND_PERCENTILE
+
+            and current_stock < 50
+        ):
+
+            insight_type = "HIGH DEMAND"
+
+            priority = "HIGH"
+
+            trend_strength = "HIGH"
+
+            message = (
+                f"{product_name} has very high customer demand with low available stock."
+            )
+
+            recommendation = (
+                "Urgent restocking recommended to avoid stock shortage."
+            )
+
+        elif demand_score >= HIGH_DEMAND_PERCENTILE:
 
             insight_type = "HIGH DEMAND"
 
@@ -154,6 +196,8 @@ def generate_auto_insights(page, pageSize):
 
             "total_orders": total_orders,
 
+            "current_stock": current_stock,
+
             "demand_score": demand_score,
 
             "insight_type": insight_type,
@@ -182,5 +226,14 @@ def generate_auto_insights(page, pageSize):
 
         pageSize=pageSize,
 
-        total_records=total_records
+        total_records=total_records,
+
+        extra={
+
+            "filter": filter_type,
+
+            "start_date": start_date,
+
+            "end_date": end_date
+        }
     )

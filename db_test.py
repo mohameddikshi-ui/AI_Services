@@ -7,17 +7,26 @@ query = text("""
 
 SELECT TOP 20
 
-    fItemcode,
-    fItemName,
-    fParent,
-    fAclevel,
-    fShow
+    s.Itemcode,
 
-FROM Item
+    i.fItemName,
 
-WHERE fAclevel = -3
+    SUM(ISNULL(s.Qty, 0)) AS current_stock
 
-ORDER BY fItemcode
+FROM Stock s
+
+INNER JOIN Item i
+    ON s.Itemcode = i.fItemcode
+
+WHERE s.Itemcode IS NOT NULL
+
+GROUP BY
+
+    s.Itemcode,
+
+    i.fItemName
+
+ORDER BY current_stock DESC
 
 """)
 
@@ -26,7 +35,7 @@ with engine.connect() as conn:
 
     result = conn.execute(query)
 
-    print("\n📌 SELLABLE ITEMS\n")
+    print("\n📌 CURRENT STOCK CHECK\n")
 
     for row in result:
 
