@@ -3,7 +3,7 @@ from app.services.top_selling_service import get_top_selling
 
 router = APIRouter(tags=["Top Selling Products Analysis"])
 
-@router.get("/ai/top-selling")
+@router.get("/top-selling")
 def top_selling(
     page: int = 1,
     pageSize: int = 10,

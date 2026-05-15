@@ -4,7 +4,7 @@ from app.services.trend_service import get_trend_analysis
 router = APIRouter(tags=["Trend Analysis"])
 
 
-@router.get("/ai/trends")
+@router.get("/trends")
 def trends(
     page: int = Query(1),
     pageSize: int = Query(10),
