@@ -1,4 +1,5 @@
 from sqlalchemy import text
+
 from app.core.db import engine
 
 
@@ -15,27 +16,90 @@ END
 """
 
 
-def get_inventory_data(search, offset, limit, filter_type="monthly", start_date=None, end_date=None):
+def get_inventory_data(
+
+    search,
+
+    offset,
+
+    limit,
+
+    filter_type="overall",
+
+    month=None,
+
+    year=None,
+
+    start_date=None,
+
+    end_date=None
+):
 
     date_filter = ""
+
+    month_filter = ""
+
+    year_filter = ""
+
     custom_date_filter = ""
 
-    if filter_type == "weekly":
-        date_filter = "AND it.fDate >= DATEADD(DAY, -7, GETDATE())"
+    # ==========================================
+    # FILTER TYPE LOGIC
+    # ==========================================
 
-    elif filter_type == "monthly":
-        date_filter = "AND it.fDate >= DATEADD(MONTH, -1, GETDATE())"
+    if not month and not (start_date and end_date):
+
+        if filter_type == "weekly":
+
+            date_filter = """
+            AND it.fDate >= DATEADD(DAY, -7, GETDATE())
+            """
+
+        elif filter_type == "monthly":
+
+            date_filter = """
+            AND it.fDate >= DATEADD(MONTH, -1, GETDATE())
+            """
+
+    # ==========================================
+    # MONTH FILTER
+    # ==========================================
+
+    if month:
+
+        month_filter = """
+        AND DATENAME(MONTH, it.fDate) = :month
+        """
+
+    # ==========================================
+    # YEAR FILTER
+    # ==========================================
+
+    if year:
+
+        year_filter = """
+        AND YEAR(it.fDate) = :year
+        """
+
+    # ==========================================
+    # CUSTOM DATE FILTER
+    # ==========================================
 
     if start_date and end_date:
+
         custom_date_filter = """
         AND it.fDate >= :start_date
         AND it.fDate < DATEADD(DAY, 1, :end_date)
         """
 
     query = text(f"""
+
     SELECT
+
         pd.fItemcode AS Fitemcode,
+
         pd.fItemName AS FitemName,
+
         {CATEGORY_CASE} AS category,
 
         ISNULL(st.current_stock, 0) AS current_stock,
@@ -46,54 +110,104 @@ def get_inventory_data(search, offset, limit, filter_type="monthly", start_date=
 
         CASE 
             WHEN COUNT(DISTINCT CAST(it.fDate AS DATE)) > 0
-            THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 / COUNT(DISTINCT CAST(it.fDate AS DATE))
+            THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 /
+                 COUNT(DISTINCT CAST(it.fDate AS DATE))
             ELSE 0
         END AS avg_daily_sales
 
     FROM Item pd
 
     LEFT JOIN (
+
         SELECT
+
             Itemcode,
+
             SUM(ISNULL(Qty, 0)) AS current_stock
+
         FROM Stock
+
         WHERE Itemcode IS NOT NULL
+
         AND LTRIM(RTRIM(Itemcode)) <> ''
+
         GROUP BY Itemcode
+
     ) st
         ON pd.fItemcode = st.Itemcode
 
     LEFT JOIN ItemTransaction it
         ON pd.fItemcode = it.fItemcode
+
         {date_filter}
+
+        {month_filter}
+
+        {year_filter}
+
         {custom_date_filter}
 
-    WHERE pd.fItemName LIKE :search
-    AND pd.fItemcode IS NOT NULL
-    AND LTRIM(RTRIM(pd.fItemcode)) <> ''
+    WHERE
+
+        pd.fItemName LIKE :search
+
+        AND pd.fItemcode IS NOT NULL
+
+        AND LTRIM(RTRIM(pd.fItemcode)) <> ''
 
     GROUP BY
+
         pd.fItemcode,
+
         pd.fItemName,
+
         st.current_stock,
+
         {CATEGORY_CASE}
+        
+    HAVING SUM(ISNULL(it.fTotQty, 0)) > 0
 
     ORDER BY historical_sales DESC
 
     OFFSET :offset ROWS
     FETCH NEXT :limit ROWS ONLY
+
     """)
 
     params = {
+
         "search": f"%{search}%",
+
         "offset": offset,
+
         "limit": limit
     }
 
+    if month:
+
+        params["month"] = month
+
+    if year:
+
+        params["year"] = year
+
     if start_date and end_date:
+
         params["start_date"] = start_date
+
         params["end_date"] = end_date
 
+    print("\n📌 INVENTORY FILTER PARAMS\n")
+
+    print(params)
+
     with engine.connect() as conn:
+
         result = conn.execute(query, params)
-        return [dict(row._mapping) for row in result]
+
+        return [
+
+            dict(row._mapping)
+
+            for row in result.fetchall()
+        ]

@@ -7,36 +7,65 @@ query = text("""
 
 SELECT TOP 20
 
-    s.Itemcode,
+    pd.fItemcode,
 
-    i.fItemName,
+    pd.fItemName,
 
-    SUM(ISNULL(s.Qty, 0)) AS current_stock
+    SUM(ISNULL(it.fTotQty, 0)) AS historical_sales,
 
-FROM Stock s
+    COUNT(DISTINCT CAST(it.fDate AS DATE)) AS active_days,
 
-INNER JOIN Item i
-    ON s.Itemcode = i.fItemcode
+    CASE 
+        WHEN COUNT(DISTINCT CAST(it.fDate AS DATE)) > 0
+        THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 /
+             COUNT(DISTINCT CAST(it.fDate AS DATE))
+        ELSE 0
+    END AS avg_daily_sales
 
-WHERE s.Itemcode IS NOT NULL
+FROM ItemTransaction it
+
+INNER JOIN Item pd
+    ON it.fItemcode = pd.fItemcode
+
+WHERE
+
+    DATENAME(MONTH, it.fDate) = :month
+
+    AND YEAR(it.fDate) = :year
 
 GROUP BY
 
-    s.Itemcode,
+    pd.fItemcode,
 
-    i.fItemName
+    pd.fItemName
 
-ORDER BY current_stock DESC
+HAVING SUM(ISNULL(it.fTotQty, 0)) > 0
+
+ORDER BY historical_sales DESC
 
 """)
 
 
+params = {
+
+    "month": "January",
+
+    "year": 2026
+}
+
+
 with engine.connect() as conn:
 
-    result = conn.execute(query)
+    result = conn.execute(query, params)
 
-    print("\n📌 CURRENT STOCK CHECK\n")
+    rows = result.fetchall()
 
-    for row in result:
+    print("\n📌 INVENTORY MONTH TEST\n")
+
+    print(f"Month : {params['month']}")
+
+    print(f"Year  : {params['year']}\n")
+
+    for row in rows:
 
         print(dict(row._mapping))
