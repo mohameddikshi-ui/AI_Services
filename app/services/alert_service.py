@@ -8,22 +8,37 @@ from app.utils.response import success_response
 
 
 def get_smart_alerts(
+
     page,
+
     pageSize,
+
     search,
+
     filter_type="monthly",
+
     start_date=None,
+
     end_date=None
 ):
 
-    offset, limit = get_pagination(page, pageSize)
+    offset, limit = get_pagination(
+        page,
+        pageSize
+    )
 
     response = get_alert_data(
+
         search,
+
         offset,
+
         limit,
+
         filter_type,
+
         start_date,
+
         end_date
     )
 
@@ -36,6 +51,22 @@ def get_smart_alerts(
     ) if limit > 0 else 1
 
     result = []
+
+    # ==========================================
+    # PERIOD LABEL
+    # ==========================================
+
+    if filter_type == "weekly":
+
+        analyzed_period = "Last 7 Days"
+
+    else:
+
+        analyzed_period = "Last 1 Month"
+
+    # ==========================================
+    # LOOP
+    # ==========================================
 
     for item in data:
 
@@ -61,17 +92,16 @@ def get_smart_alerts(
                 avg_daily_sales * 7
             )
 
-            analyzed_period = "Last 7 Days"
-
         else:
 
             required_stock = round(
                 avg_daily_sales * 30
             )
 
-            analyzed_period = "Last 1 Month"
+        # ==========================================
+        # SAFETY STOCK
+        # ==========================================
 
-        # Safety stock
         recommended_stock = round(
             required_stock * 1.2
         )
@@ -96,16 +126,6 @@ def get_smart_alerts(
 
             recommendation = (
                 "Restock immediately"
-            )
-
-        elif recent_sales == 0:
-
-            alert_type = "NO_RECENT_SALES"
-
-            severity = "MEDIUM"
-
-            recommendation = (
-                "Consider promotion or clearance"
             )
 
         elif current_stock < required_stock:
@@ -137,6 +157,20 @@ def get_smart_alerts(
             recommendation = (
                 "Monitor stock frequently due to high sales speed"
             )
+
+        elif recent_sales == 0:
+
+            alert_type = "NO_RECENT_SALES"
+
+            severity = "LOW"
+
+            recommendation = (
+                "Consider promotion or clearance"
+            )
+
+        # ==========================================
+        # FINAL RESULT
+        # ==========================================
 
         result.append({
 
@@ -183,6 +217,10 @@ def get_smart_alerts(
         analyzed_period = (
             f"{start_date} to {end_date}"
         )
+
+    # ==========================================
+    # FINAL RESPONSE
+    # ==========================================
 
     return success_response(
 

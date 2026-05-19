@@ -43,6 +43,8 @@ def get_inventory_data(
 
     custom_date_filter = ""
 
+    period_days = 30
+
     # ==========================================
     # FILTER TYPE LOGIC
     # ==========================================
@@ -55,11 +57,15 @@ def get_inventory_data(
             AND it.fDate >= DATEADD(DAY, -7, GETDATE())
             """
 
+            period_days = 7
+
         elif filter_type == "monthly":
 
             date_filter = """
             AND it.fDate >= DATEADD(MONTH, -1, GETDATE())
             """
+
+            period_days = 30
 
     # ==========================================
     # MONTH FILTER
@@ -109,9 +115,9 @@ def get_inventory_data(
         COUNT(DISTINCT CAST(it.fDate AS DATE)) AS active_days,
 
         CASE 
-            WHEN COUNT(DISTINCT CAST(it.fDate AS DATE)) > 0
+            WHEN :period_days > 0
             THEN SUM(ISNULL(it.fTotQty, 0)) * 1.0 /
-                 COUNT(DISTINCT CAST(it.fDate AS DATE))
+                 :period_days
             ELSE 0
         END AS avg_daily_sales
 
@@ -164,7 +170,7 @@ def get_inventory_data(
         st.current_stock,
 
         {CATEGORY_CASE}
-        
+
     HAVING SUM(ISNULL(it.fTotQty, 0)) > 0
 
     ORDER BY historical_sales DESC
@@ -180,7 +186,9 @@ def get_inventory_data(
 
         "offset": offset,
 
-        "limit": limit
+        "limit": limit,
+
+        "period_days": period_days
     }
 
     if month:
