@@ -246,27 +246,66 @@ def get_trend_data(search, offset, limit, filter_type):
 
 
 
-def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_date=None):
+def get_forecast_data(
+
+    search,
+
+    offset,
+
+    limit,
+
+    filter_type,
+
+    start_date=None,
+
+    end_date=None
+):
 
     date_filter = ""
+
     custom_date_filter = ""
 
+    forecast_days = 30
+
+    # ==========================================
+    # FILTER LOGIC
+    # ==========================================
+
     if filter_type == "weekly":
-        date_filter = "AND it.fDate >= DATEADD(DAY, -7, GETDATE())"
+
+        date_filter = """
+        AND it.fDate >= DATEADD(DAY, -7, GETDATE())
+        """
+
+        forecast_days = 7
 
     elif filter_type == "monthly":
-        date_filter = "AND it.fDate >= DATEADD(MONTH, -1, GETDATE())"
+
+        date_filter = """
+        AND it.fDate >= DATEADD(MONTH, -1, GETDATE())
+        """
+
+        forecast_days = 30
+
+    # ==========================================
+    # CUSTOM DATE RANGE
+    # ==========================================
 
     if start_date and end_date:
+
         custom_date_filter = """
         AND it.fDate >= :start_date
         AND it.fDate < DATEADD(DAY, 1, :end_date)
         """
 
     query = text(f"""
+
     SELECT
+
         pd.fItemcode AS Fitemcode,
+
         pd.fItemName AS FitemName,
+
         {CATEGORY_CASE} AS category,
 
         SUM(ISNULL(it.fTotQty, 0)) AS total_sales,
@@ -274,10 +313,9 @@ def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_d
         COUNT(DISTINCT CAST(it.fDate AS DATE)) AS active_days,
 
         CASE 
-            WHEN COUNT(DISTINCT CAST(it.fDate AS DATE)) > 0
+            WHEN :forecast_days > 0
             THEN 
-                SUM(ISNULL(it.fTotQty, 0)) * 1.0 / 
-                COUNT(DISTINCT CAST(it.fDate AS DATE))
+                SUM(ISNULL(it.fTotQty, 0)) * 1.0 / :forecast_days
             ELSE 0
         END AS avg_sales
 
@@ -286,34 +324,58 @@ def get_forecast_data(search, offset, limit, filter_type, start_date=None, end_d
     JOIN Item pd
         ON it.fItemcode = pd.fItemcode
 
-    WHERE pd.fItemName LIKE :search
-    {date_filter}
-    {custom_date_filter}
+    WHERE
+
+        pd.fItemName LIKE :search
+
+        {date_filter}
+
+        {custom_date_filter}
 
     GROUP BY
+
         pd.fItemcode,
+
         pd.fItemName,
+
         {CATEGORY_CASE}
+
+    HAVING SUM(ISNULL(it.fTotQty, 0)) > 0
 
     ORDER BY avg_sales DESC
 
     OFFSET :offset ROWS
     FETCH NEXT :limit ROWS ONLY
+
     """)
 
     params = {
+
         "search": f"%{search}%",
+
         "offset": offset,
-        "limit": limit
+
+        "limit": limit,
+
+        "forecast_days": forecast_days
     }
 
     if start_date and end_date:
+
         params["start_date"] = start_date
+
         params["end_date"] = end_date
 
     with engine.connect() as conn:
+
         result = conn.execute(query, params)
-        return [dict(row._mapping) for row in result]
+
+        return [
+
+            dict(row._mapping)
+
+            for row in result.fetchall()
+        ]
 # ============================================================
 # purchase patterns
 # ==========================================================
